@@ -222,7 +222,8 @@ var (
 	PrivateOnly  bool
 	DownLoadDir  string
 	RootDir      string
-	DownloadDirs masterSlice
+	DownloadDirs dirsSlice
+	downsDirs    string
 	DefaultDir   string
 	langTag      string
 	// transmission
@@ -254,6 +255,7 @@ var (
 
 // we need a type for masters for the flag package to parse them as a slice
 type masterSlice []string
+type dirsSlice []string
 
 // String is mandatory functions for the flag package
 func (masters *masterSlice) String() string {
@@ -271,6 +273,29 @@ func (masters masterSlice) Contains(master string) bool {
 	master = strings.ToLower(master)
 	for i := range masters {
 		if masters[i] == master {
+			return true
+		}
+	}
+	return false
+}
+
+////Для диров
+// String is mandatory functions for the flag package
+func (dirs *dirsSlice) String() string {
+	return fmt.Sprintf("%s", *dirs)
+}
+
+// Set is mandatory functions for the flag package
+func (dirs *dirsSlice) Set(dir string) error {
+	*dirs = append(*dirs, dir)
+	return nil
+}
+
+// Contains takes a string and return true of dirsSlice has it
+func (dirs dirsSlice) Contains(dir string) bool {
+	//master = strings.ToLower(master)
+	for i := range dirs {
+		if dirs[i] == dir {
 			return true
 		}
 	}
@@ -306,7 +331,8 @@ func init() {
 	flag.StringVar(&DefaultDir, "defdir", "Downloads", "Default download dir")
 	flag.StringVar(&RootDir, "rootdir", "/volume1/SHARE_DRIVE", "Root of download directory")
 	flag.StringVar(&langTag, "lang", "ru", "Set bot language")
-	flag.Var(&DownloadDirs, "downloaddirs", "Set download dirs in root dir")
+	//flag.Var(&DownloadDirs, "downloaddirs", "Set download dirs in root dir")
+	flag.StringVar(&downsDirs, "downloaddirs", "", "Set download dirs in root dir")
 
 	prn := message.NewPrinter(language.Make(langTag))
 
@@ -342,6 +368,15 @@ func init() {
 	// make sure that the handler doesn't contain @
 	for i := range Masters {
 		Masters[i] = strings.Replace(Masters[i], "@", "", -1)
+	}
+
+	DownloadDirs = strings.Split(downsDirs, ",")
+
+	logger.Printf("DownloadDirs count %d", len(DownloadDirs))
+
+	// make sure that the handler doesn't contain ,
+	for i := range DownloadDirs {
+		DownloadDirs[i] = strings.Replace(DownloadDirs[i], ",", "", -1)
 	}
 
 	// if we got a log file, log to it
@@ -394,8 +429,8 @@ func init() {
 	}
 
 	// log the flags
-	logger.Printf("[INFO] Token=%s\n\t\tMasters=%s\n\t\tURL=%s\n\t\tUSER=%s\n\t\tPASS=%s",
-		BotToken, Masters, RPCURL, Username, Password)
+	logger.Printf("[INFO] Token=%s\n\t\tMasters=%s\n\t\tURL=%s\n\t\tUSER=%s\n\t\tPASS=%s\n\t\tDownloadDirs=%s\n\t\tRootDir=%s\n\t\tDefaultDir=%s",
+		BotToken, Masters, RPCURL, Username, Password, DownloadDirs, RootDir, DefaultDir)
 }
 
 // init transmission
@@ -1147,6 +1182,7 @@ func add(ud tgbotapi.Update, tokens []string) {
 	//если папка не найдена - идет скачивание в дефолтную папку
 	url := tokens[0]
 	folder := tokens[1]
+	//logger.Printf("get folder %s", folder)
 	if testLink(url) {
 		//DownloadDirs
 		//nums := []int{8, 0}
@@ -1154,6 +1190,7 @@ func add(ud tgbotapi.Update, tokens []string) {
 		for i := range DownloadDirs {
 			if strings.ToLower(tokens[1]) == strings.ToLower(DownloadDirs[i]) {
 				folder = DownloadDirs[i]
+				//logger.Printf("set folder is %s", DownloadDirs[i])
 				break
 			} else {
 				folder = ""
@@ -1200,8 +1237,10 @@ func receiveTorrent(ud tgbotapi.Update) {
 		return
 	}
 
+	//logger.Printf("received %s", ud.Message.Caption)
+
 	// add by file URL
-	add(ud, []string{file.Link(BotToken), ud.Message.Text})
+	add(ud, []string{file.Link(BotToken), ud.Message.Caption})
 }
 
 // add torrent files in entities or explict magnet link
